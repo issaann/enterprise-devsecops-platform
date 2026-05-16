@@ -33,15 +33,18 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh 'kubectl apply -f kubernetes/deployment.yaml'
-                sh 'kubectl apply -f kubernetes/service.yaml'
+                // This block safely binds your uploaded kubeconfig file to a temporary environment variable
+                withCredentials([file(credentialsId: 'kubernetes-config', variable: 'KUBECONFIG_FILE')]) {
+                    sh 'KUBECONFIG=$KUBECONFIG_FILE kubectl apply -f kubernetes/deployment.yaml'
+                    sh 'KUBECONFIG=$KUBECONFIG_FILE kubectl apply -f kubernetes/service.yaml'
+                }
             }
         }
     }
 
     post {
         always {
-            // Clean up Docker credentials from the agent runner
+            // Clean up Docker login sessions from the runner
             sh 'docker logout || true'
         }
         success {

@@ -1,57 +1,54 @@
 pipeline {
-agent any
+    agent any
 
-```
-environment {
-    IMAGE_NAME = "issann/devsecops-app:v1"
-}
-
-stages {
-
-    stage('Checkout Code') {
-        steps {
-            checkout scm
-        }
+    environment {
+        IMAGE_NAME = "issann/devsecops-app:v1"
     }
 
-    stage('Build Docker Image') {
-        steps {
-            sh 'docker build -t $IMAGE_NAME backend'
+    stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
         }
-    }
 
-    stage('Push Docker Image') {
-        steps {
-            withCredentials([usernamePassword(
-                credentialsId: 'docker-hub-credentials',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )]) {
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t $IMAGE_NAME backend'
+            }
+        }
 
-                sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-hub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh 'docker push $IMAGE_NAME'
+                }
+            }
+        }
 
-                sh 'docker push $IMAGE_NAME'
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'kubectl apply -f k8s/deployment.yaml'
+                sh 'kubectl apply -f k8s/service.yaml'
             }
         }
     }
 
-    stage('Deploy to Kubernetes') {
-        steps {
-            sh 'kubectl apply -f k8s/deployment.yaml'
-            sh 'kubectl apply -f k8s/service.yaml'
+    post {
+        always {
+            // Clean up Docker credentials from the agent runner
+            sh 'docker logout || true'
+        }
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
         }
     }
-}
-
-post {
-    success {
-        echo 'Pipeline executed successfully!'
-    }
-
-    failure {
-        echo 'Pipeline failed!'
-    }
-}
-```
-
 }

@@ -1,24 +1,57 @@
 pipeline {
-    agent any
+agent any
 
-    stages {
+```
+environment {
+    IMAGE_NAME = "issann/devsecops-app:v1"
+}
 
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t issann/devsecops-app:v1 backend'
-            }
+stages {
+
+    stage('Checkout Code') {
+        steps {
+            checkout scm
         }
+    }
 
-        stage('Push Docker Image') {
-            steps {
-                sh 'docker push issann/devsecops-app:v1'
-            }
+    stage('Build Docker Image') {
+        steps {
+            sh 'docker build -t $IMAGE_NAME backend'
         }
+    }
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh 'kubectl apply -f kubernetes/'
+    stage('Push Docker Image') {
+        steps {
+            withCredentials([usernamePassword(
+                credentialsId: 'docker-hub-credentials',
+                usernameVariable: 'DOCKER_USER',
+                passwordVariable: 'DOCKER_PASS'
+            )]) {
+
+                sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+
+                sh 'docker push $IMAGE_NAME'
             }
         }
     }
+
+    stage('Deploy to Kubernetes') {
+        steps {
+            sh 'kubectl apply -f k8s/deployment.yaml'
+            sh 'kubectl apply -f k8s/service.yaml'
+        }
+    }
+}
+
+post {
+    success {
+        echo 'Pipeline executed successfully!'
+    }
+
+    failure {
+        echo 'Pipeline failed!'
+    }
+}
+```
+
 }
